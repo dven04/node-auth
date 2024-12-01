@@ -53,6 +53,44 @@ class Users{
         }
     }
 
+    async updateUser(){
+        const connection = await pool.getConnection();
+        try{
+            await connection.beginTransaction();
+            const sql = 'UPDATE users SET employee_id = ?, username = ?, password = ? WHERE user_id = ?';
+            const [result] = await connection.execute(sql, [
+                this.employee_id,
+                this.username,
+                this.password
+            ]);
+            await connection.commit();
+            return result;
+        }catch(error){
+            await connection.rollback();
+            console.error('Updating user/s failed: ', error);
+            throw error;
+        }finally{
+            connection.release();
+        }
+    }
+
+    async deleteUser(){
+        const connection = await pool.getConnection();
+        try{
+            await connection.beginTransaction();
+            const sql = 'DELETE FROM users WHERE user_id = ?';
+            const [result] = await connection.execute(sql, [this.employee_id]);
+            await connection.commit();
+            return result;
+        }catch(error){
+            await connection.rollback();
+            console.error('Deleting user/s failed: ', error);
+            throw error;
+        }finally{
+            connection.release();
+        }
+    }
+
 
 }
 

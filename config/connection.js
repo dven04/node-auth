@@ -17,8 +17,10 @@ const pool = mysql.createPool({
         console.log('Database connected');
         connection.release();
     } catch (error) {
-        console.error('Database connection failed');
+        console.error('Database connection failed' ,error.message);
     }
 })();
+
+
 
 module.exports = pool;
