@@ -24,12 +24,26 @@ class Users{
         try {
             const sql = 'SELECT * FROM users WHERE username = ?';
             const [result] = await pool.execute(sql, [this.username]);
-            return result; // This returns an array
+            return result;
         } catch (error) {
             console.error('Fetching users failed: ', error);
             throw error;
         }
     }
+    // Updated getUserById method to fetch user by id
+    async getUserById() {
+        try {
+            const sql = 'SELECT * FROM users WHERE id = ?';
+            const [result] = await pool.execute(sql, [this.id]);  // Use the id from the instance
+            return result;
+        } catch (error) {
+            console.error('Fetching user by ID failed: ', error);
+            throw error;
+        }
+    }
+
+    
+    
     
 
     async save(){
