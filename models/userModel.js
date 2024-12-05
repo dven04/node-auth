@@ -1,7 +1,7 @@
-const pool = require('../config/connection')
+const pool = require('../config/connection');
+const bcrypt = require('bcrypt');
 
-
-class Users{
+class Users {
     constructor({ id = null, username = null, password = null, email = null } = {}) {
         this.id = id;
         this.username = username;
@@ -9,103 +9,93 @@ class Users{
         this.email = email;
     }
 
-    async fetchUsers(){
-        try{
+    static async getAllUsers() {
+        try {
             const sql = 'SELECT * FROM users';
             const [result] = await pool.execute(sql);
             return result;
-        }catch(error){
-            console.error('Fetching users failed: ', error);
+        } catch (error) {
+            console.error('Error fetching all users:', error.message);
             throw error;
         }
     }
 
-    async getUserByUsername() {
+    // Find a user by username
+    async findByUsername() {
         try {
             const sql = 'SELECT * FROM users WHERE username = ?';
             const [result] = await pool.execute(sql, [this.username]);
-            return result;
+            return result.length > 0 ? result[0] : null;  // Return the user or null if not found
         } catch (error) {
-            console.error('Fetching users failed: ', error);
+            console.error('Error fetching user by username:', error.message);
             throw error;
         }
     }
-    // Updated getUserById method to fetch user by id
-    async getUserById() {
+
+
+    // Find a user by their ID
+    async findById() {
         try {
             const sql = 'SELECT * FROM users WHERE id = ?';
-            const [result] = await pool.execute(sql, [this.id]);  // Use the id from the instance
-            return result;
+            const [result] = await pool.execute(sql, [this.id]);
+            return result[0];  // return the first matching user
         } catch (error) {
-            console.error('Fetching user by ID failed: ', error);
+            console.error('Error fetching user by ID:', error.message);
             throw error;
         }
     }
 
-    
-    
-    
+    // Method to create a new user
+    async create() {
+        return await withTransaction(async (connection) => {
+            const hashedPassword = await bcrypt.hash(this.password, 10); // Hash the password before saving
+            const sql = 'INSERT INTO users (username, password, email) VALUES (?, ?, ?)';
+            const [result] = await connection.execute(sql, [this.username, hashedPassword, this.email]);
+            this.id = result.insertId;  // set the id of the current instance
+            return this;  // Return the user instance with the newly created id
+        });
+    }
 
-    async save(){
-        const connection = await pool.getConnection();
-        try {
-            await connection.beginTransaction();
-            const sql = 'INSERT INTO users (username, password, email) VALUES (?,?,?)';
-            const [result] = await connection.execute(sql, [
-                this.username,
-                this.password,
-                this.email
-            ]);
-            await connection.commit();
+    // Method to update an existing user (optional, depending on requirements)
+    async update() {
+        return await withTransaction(async (connection) => {
+            const currentUser = await this.findById();
+
+            let hashedPassword = this.password;
+            if (this.password !== currentUser.password) {
+                hashedPassword = await bcrypt.hash(this.password, 10);
+            }
+
+            const sql = 'UPDATE users SET username = ?, password = ?, email = ? WHERE id = ?';
+            const [result] = await connection.execute(sql, [this.username, hashedPassword, this.email, this.id]);
             return result;
-        } catch (error) {
-            await connection.rollback();
-            console.error('Saving user/s failed: ', error);
-            throw error;
-        } finally {
-            connection.release();
-        }
+        });
     }
 
-    async updateUser(){
-        const connection = await pool.getConnection();
-        try{
-            await connection.beginTransaction();
-            const sql = 'UPDATE users SET employee_id = ?, username = ?, password = ? WHERE user_id = ?';
-            const [result] = await connection.execute(sql, [
-                this.employee_id,
-                this.username,
-                this.password
-            ]);
-            await connection.commit();
-            return result;
-        }catch(error){
-            await connection.rollback();
-            console.error('Updating user/s failed: ', error);
-            throw error;
-        }finally{
-            connection.release();
-        }
+    // Method to delete a user by their ID
+    async delete() {
+        return await withTransaction(async (connection) => {
+            const sql = 'DELETE FROM users WHERE id = ?';
+            const [result] = await connection.execute(sql, [this.id]);
+            return result;  // Return the result of the delete query
+        });
     }
-
-    async deleteUser(){
-        const connection = await pool.getConnection();
-        try{
-            await connection.beginTransaction();
-            const sql = 'DELETE FROM users WHERE user_id = ?';
-            const [result] = await connection.execute(sql, [this.employee_id]);
-            await connection.commit();
-            return result;
-        }catch(error){
-            await connection.rollback();
-            console.error('Deleting user/s failed: ', error);
-            throw error;
-        }finally{
-            connection.release();
-        }
-    }
-
-
 }
+
+// Helper function to execute queries with transactions
+const withTransaction = async (callback) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const result = await callback(connection);
+        await connection.commit();
+        return result;
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 
 module.exports = Users;

@@ -1,19 +1,14 @@
-const express = require('express');
-require('dotenv').config();
-const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser')
 const Users = require('../models/userModel');
-const authenticateJWT = require('../middleware/authMiddleware');
 
 const SIKRIT = process.env.SIKRIT;
 
 // REGISTER USER
-router.post('/register', async (req, res) => {
+const createUser = async (req, res) => {
     try {
         const { username, password, email } = req.body;
-        console.log(req.body); // Consider removing this after debugging
+
         if (!username || !password || !email) {
             return res.status(400).json({ message: 'Please fill all fields' });
         }
@@ -24,66 +19,54 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Invalid email format' });
         }
 
-        const hashedPassword = bcrypt.hashSync(password, bcrypt.genSaltSync(8));
-        
-        const user = new Users({
-            username,
-            password: hashedPassword,
-            email
-        });
+        // Create a new user instance
+        const user = new Users({ username, password, email });
 
-        const result = await user.save();
+        // Use 'create' method (password is hashed inside the model)
+        await user.create();
 
         res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
         console.error('Error adding user:', error);
         res.status(500).json({ message: 'Failed to add user', error: error.message });
     }
-});
+};
 
-
-
-// GET AUTHENTICATE USER
-router.get('/fetch', authenticateJWT, async (req, res) => {
+// GET AUTHENTICATED USER
+const fetchUser = async (req, res) => {
     try {
         const cookie = req.cookies['jwt'];
 
-        console.log('JWT Cookie:', cookie);  // Log the cookie to check if it exists
-
-        // Verify JWT token
-        const claims = jwt.verify(cookie, process.env.SIKRIT);
-        console.log('Decoded JWT Claims:', claims);  // Log the claims to verify the decoded JWT
-
-        if (!claims) {
-            return res.status(401).send({
-                message: 'unauthenticated'
-            });
+        if (!cookie) {
+            return res.status(401).send({ message: 'Unauthenticated' });
         }
 
-        // Create a Users instance with the id from the JWT claims
+        let claims;
+        try {
+            claims = jwt.verify(cookie, process.env.SIKRIT);
+        } catch (err) {
+            return res.status(401).send({ message: 'Invalid or expired token' });
+        }
+
+        // Fetch the user by ID
         const userInstance = new Users({ id: claims.id });
+        const result = await userInstance.findById();
 
-        // Fetch the user by id directly
-        const result = await userInstance.getUserById();  // Use the id to fetch the user
-
-        if (result.length === 0) {
-            console.log('User not found for id:', claims.id);  // Log if the user is not found
+        if (!result) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Destructure to exclude the password field and return user data
-        const { password, ...data } = result[0];  // Assuming result[0] contains the user data
-
-        res.send(data);
+        // Exclude the password field
+        const { password, ...data } = result;
+        res.json(data);
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
-});
-
+};
 
 // LOGIN USER
-router.post('/login', async (req, res) => {
+const loginUser = async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
@@ -91,45 +74,53 @@ router.post('/login', async (req, res) => {
         }
 
         const user = new Users({ username });
-        const result = await user.getUserByUsername();
+        const result = await user.findByUsername();
 
-        if (result.length === 0) {
+        if (!result) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const match = bcrypt.compareSync(password, result[0].password);
+        const match = bcrypt.compareSync(password, result.password);
         if (!match) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT token and include 'SIKRIT' from .env
-        const token = jwt.sign({ id: result[0].id }, process.env.SIKRIT);
+        // Generate JWT token
+        const token = jwt.sign({ id: result.id }, process.env.SIKRIT, { expiresIn: '1d' });
 
         // Set JWT token in cookie
         res.cookie('jwt', token, {
             httpOnly: true,
-            maxAge: 24 * 60 * 60 * 1000,  // 1 day
-            // // secure: process.env.NODE_ENV === 'production', // Only set this in production
-            // sameSite: 'Strict'  // Prevents the browser from sending the cookie in cross-site requests
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
         });
-        
 
         res.json({ message: 'Login successful' });
     } catch (error) {
         console.error('Error logging in:', error);
         res.status(500).json({ message: 'Failed to login', error: error.message });
     }
-});
+};
 
+//UPDATE USER 
+const updateUser = async (req, res) => {
+    try {
+        const { username, password, email } = req.body;
+        const user = new Users({ id: req.user.id, username, password, email });  // Assuming req.user.id is the logged-in user's ID
 
+        // Call the update method on the user model
+        await user.update();
+
+        res.status(200).json({ message: 'User updated successfully' });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Failed to update user', error: error.message });
+    }
+};
 
 // LOGOUT USER
-router.post('/logout', (req, res) => {
-    // Clear JWT cookie
-    res.cookie('jwt', '', { maxAge: 0 });
-
+const logoutUser = (req, res) => {
+    res.cookie('jwt', '', { maxAge: 0 }); // Clear the cookie
     res.json({ message: 'Logout successful' });
-});
+};
 
-
-module.exports = router;
+module.exports = { createUser, fetchUser, loginUser, logoutUser, updateUser};
