@@ -20,6 +20,30 @@ class Users {
         }
     }
 
+    // Find a user by either username (static method)
+    static async findByUsername(username) {
+        try {
+            const sql = 'SELECT * FROM users WHERE username = ?';
+            const [result] = await pool.execute(sql, [username]);
+            return result.length > 0 ? result[0] : null;  // Return the user or null if not found
+        } catch (error) {
+            console.error('Error checking if username exists:', error.message);
+            throw error;
+        }
+    }
+    // Find a user by email (Static method)
+    static async findByUserEmail(email) {
+        try {
+            const sql = 'SELECT * FROM users WHERE email = ?';
+            const [result] = await pool.execute(sql, [email]);
+            return result.length > 0 ? result[0] : null;  // Return the user or null if not found
+        } catch (error) {
+            console.error('Error checking if email exists:', error.message);
+            throw error;
+        }
+    }
+
+
     // Find a user by username
     async findByUsername() {
         try {

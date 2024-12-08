@@ -19,6 +19,16 @@ const createUser = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email format' });
         }
 
+        // Check if username or email already exists
+        const existingUsername = await Users.findByUsername(username); // You may want to implement this function
+        if (existingUsername) {
+            return res.status(400).json({ message: 'Username already in use' });
+        }
+        const existingUserEmail = await Users.findByUserEmail(email); // You may want to implement this function
+        if (existingUserEmail) {
+            return res.status(400).json({ message: 'Email already in use' });
+        }
+
         // Create a new user instance
         const user = new Users({ username, password, email });
 
@@ -28,6 +38,12 @@ const createUser = async (req, res) => {
         res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
         console.error('Error adding user:', error);
+
+        // Handle the unique constraint error
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ message: 'Username or Email already in use' });
+        }
+
         res.status(500).json({ message: 'Failed to add user', error: error.message });
     }
 };
@@ -38,7 +54,7 @@ const fetchUser = async (req, res) => {
         const cookie = req.cookies['jwt'];
 
         if (!cookie) {
-            return res.status(401).send({ message: 'Unauthenticated' });
+            return res.status(401).send({ message: 'Unauthenticated: No Token Provided' });
         }
 
         let claims;
@@ -86,7 +102,7 @@ const loginUser = async (req, res) => {
         }
 
         // Generate JWT token
-        const token = jwt.sign({ id: result.id }, process.env.SIKRIT, { expiresIn: '1d' });
+        const token = jwt.sign({ id: result.id }, process.env.SIKRIT, { expiresIn: '1h' });
 
         // Set JWT token in cookie
         res.cookie('jwt', token, {

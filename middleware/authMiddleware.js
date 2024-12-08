@@ -4,16 +4,16 @@ const jwt = require('jsonwebtoken');
 const authenticateJWT = async (req, res, next) => {
   try {
     // Get the JWT from cookies
-    const cookie = req.cookies['jwt'];
-    
+    const token = req.cookies['jwt'];
+
     // If no token is provided, deny access
-    if (!cookie) {
+    if (!token) {
       return res.status(401).json({ message: 'No token provided, access denied' });
     }
 
     // Verify the token using the secret key stored in .env
-    const decoded = jwt.verify(cookie, process.env.SIKRIT);
-    
+    const decoded = jwt.verify(token, process.env.SIKRIT);
+
     // Attach the decoded user information (e.g., user id) to the request
     req.user = decoded;
 
@@ -22,6 +22,13 @@ const authenticateJWT = async (req, res, next) => {
   } catch (error) {
     // Handle token verification errors
     console.error('Authentication error:', error);
+
+    // If the token is expired, send a specific error message
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired, please log in again' });
+    }
+
+    // For other errors, return a generic message
     return res.status(401).json({ message: 'Invalid token or token expired' });
   }
 };
