@@ -55,6 +55,17 @@ class Users {
             throw error;
         }
     }
+    // Find a user by email
+    async findByUserEmail() {
+        try {
+            const sql = 'SELECT * FROM users WHERE email = ?';
+            const [result] = await pool.execute(sql, [this.email]);
+            return result.length > 0 ? result[0] : null;  // Return the user or null if not found
+        } catch (error) {
+            console.error('Error fetching user by username:', error.message);
+            throw error;
+        }
+    }
 
 
     // Find a user by their ID

@@ -84,13 +84,13 @@ const fetchUser = async (req, res) => {
 // LOGIN USER
 const loginUser = async (req, res) => {
     try {
-        const { username, password } = req.body;
-        if (!username || !password) {
+        const { email, password } = req.body;
+        if (!email || !password) {
             return res.status(400).json({ message: 'Please fill all fields' });
         }
 
-        const user = new Users({ username });
-        const result = await user.findByUsername();
+        const user = new Users({ email });
+        const result = await user.findByUserEmail();
 
         if (!result) {
             return res.status(404).json({ message: 'User not found' });
